@@ -1,0 +1,10 @@
+build/
+install/
+log/
+bags/
+*.ulg
+*.db3
+*.csv
+__pycache__/
+*.pyc
+.DS_Store
