@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <iostream>
@@ -14,10 +15,11 @@
 using namespace std::chrono_literals;
 using namespace px4_msgs::msg;
 
-struct Waypoint {
+struct Waypoint
+{
     double x;
     double y;
-    double z;
+    double z;      // PX4 NED: negative altitude
     double yaw;
 };
 
@@ -32,19 +34,17 @@ public:
             qos_profile
         );
 
-        local_position_sub_ =
-            create_subscription<VehicleLocalPosition>(
-                "/fmu/out/vehicle_local_position_v1",
-                qos,
-                std::bind(&GoToPoint::localPositionCallback, this, std::placeholders::_1)
-            );
+        local_position_sub_ = create_subscription<VehicleLocalPosition>(
+            "/fmu/out/vehicle_local_position_v1",
+            qos,
+            std::bind(&GoToPoint::localPositionCallback, this, std::placeholders::_1)
+        );
 
-        attitude_sub_ =
-            create_subscription<VehicleAttitude>(
-                "/fmu/out/vehicle_attitude",
-                qos,
-                std::bind(&GoToPoint::attitudeCallback, this, std::placeholders::_1)
-            );
+        attitude_sub_ = create_subscription<VehicleAttitude>(
+            "/fmu/out/vehicle_attitude",
+            qos,
+            std::bind(&GoToPoint::attitudeCallback, this, std::placeholders::_1)
+        );
 
         offboard_mode_pub_ =
             create_publisher<OffboardControlMode>("/fmu/in/offboard_control_mode", 10);
@@ -55,11 +55,11 @@ public:
         vehicle_command_pub_ =
             create_publisher<VehicleCommand>("/fmu/in/vehicle_command", 10);
 
-        timer_ = create_wall_timer(20ms, std::bind(&GoToPoint::timerCallback, this));
-
         initializeWaypoints();
 
-        RCLCPP_INFO(get_logger(), "Offboard 7+ waypoint trajectory planner started.");
+        timer_ = create_wall_timer(20ms, std::bind(&GoToPoint::timerCallback, this));
+
+        RCLCPP_INFO(get_logger(), "Professional 7+ waypoint offboard trajectory planner started.");
     }
 
 private:
@@ -78,6 +78,8 @@ private:
     bool position_received_{false};
     bool offboard_started_{false};
     bool mission_finished_{false};
+    bool land_command_sent_{false};
+    bool landing_started_{false};
 
     int setpoint_counter_{0};
 
@@ -89,12 +91,6 @@ private:
 
     void initializeWaypoints()
     {
-        /*
-         * PX4 local frame is NED.
-         * z = -altitude.
-         * This trajectory has 8 waypoints and does not command zero velocity
-         * at intermediate waypoints. Zero velocity is only commanded at the end.
-         */
         waypoints_ = {
             {0.0,   0.0,  -5.0,  0.0},
             {5.0,   0.0,  -5.0,  0.0},
@@ -120,23 +116,31 @@ private:
 
     void timerCallback()
     {
-        publishOffboardControlMode();
-
-        if (!position_received_) {
+        if (landing_started_) {
             return;
         }
 
-        if (setpoint_counter_ == 50 && !offboard_started_) {
+        publishOffboardControlMode();
+
+        if (!position_received_) {
+            RCLCPP_INFO_THROTTLE(
+                get_logger(), *get_clock(), 1000,
+                "Waiting for vehicle_local_position..."
+            );
+            return;
+        }
+
+        if (setpoint_counter_ < 50) {
+            publishHoldSetpoint();
+            setpoint_counter_++;
+            return;
+        }
+
+        if (!offboard_started_) {
             engageOffboardMode();
             arm();
             offboard_started_ = true;
             RCLCPP_INFO(get_logger(), "Offboard mode requested and vehicle armed.");
-        }
-
-        if (setpoint_counter_ < 60) {
-            publishHoldSetpoint();
-            setpoint_counter_++;
-            return;
         }
 
         if (!mission_finished_) {
@@ -167,50 +171,63 @@ private:
         msg.velocity = {0.0f, 0.0f, 0.0f};
         msg.acceleration = {0.0f, 0.0f, 0.0f};
         msg.yaw = 0.0f;
+        msg.yawspeed = 0.0f;
         msg.timestamp = now().nanoseconds() / 1000;
         trajectory_pub_->publish(msg);
     }
 
     void publishTrajectory()
     {
-        TrajectorySetpoint msg{};
-
-        Waypoint p;
-        Waypoint v;
-        Waypoint a;
+        Waypoint p{};
+        Waypoint v{};
+        Waypoint a{};
 
         computeCatmullRomTrajectory(t_, p, v, a);
 
+        TrajectorySetpoint msg{};
         msg.position = {
             static_cast<float>(p.x),
             static_cast<float>(p.y),
             static_cast<float>(p.z)
         };
-
         msg.velocity = {
             static_cast<float>(v.x),
             static_cast<float>(v.y),
             static_cast<float>(v.z)
         };
-
         msg.acceleration = {
             static_cast<float>(a.x),
             static_cast<float>(a.y),
             static_cast<float>(a.z)
         };
-
         msg.yaw = static_cast<float>(p.yaw);
         msg.yawspeed = static_cast<float>(v.yaw);
         msg.timestamp = now().nanoseconds() / 1000;
 
         trajectory_pub_->publish(msg);
 
+        RCLCPP_INFO_THROTTLE(
+            get_logger(), *get_clock(), 1000,
+            "Trajectory t=%.2f s | pos=[%.2f %.2f %.2f] | vel_norm=%.2f | acc_norm=%.2f | yaw=%.2f",
+            t_, p.x, p.y, p.z,
+            std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z),
+            std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z),
+            p.yaw
+        );
+
         t_ += dt_;
 
         if (t_ >= total_time_) {
             mission_finished_ = true;
-            publishFinalStop();
-            RCLCPP_INFO(get_logger(), "Trajectory completed. Final zero velocity setpoint published.");
+
+            if (!land_command_sent_) {
+                publishFinalStop();
+                land();
+                land_command_sent_ = true;
+                landing_started_ = true;
+            }
+
+            RCLCPP_INFO(get_logger(), "Trajectory completed. LAND command sent. Offboard setpoints stopped.");
         }
     }
 
@@ -233,6 +250,28 @@ private:
         trajectory_pub_->publish(msg);
     }
 
+    void land()
+    {
+        VehicleCommand msg{};
+        msg.command = VehicleCommand::VEHICLE_CMD_NAV_LAND;
+        msg.param1 = 0.0f;
+        msg.param2 = 0.0f;
+        msg.param3 = 0.0f;
+        msg.param4 = NAN;
+        msg.param5 = NAN;
+        msg.param6 = NAN;
+        msg.param7 = NAN;
+        msg.target_system = 1;
+        msg.target_component = 1;
+        msg.source_system = 1;
+        msg.source_component = 1;
+        msg.from_external = true;
+        msg.timestamp = now().nanoseconds() / 1000;
+        vehicle_command_pub_->publish(msg);
+
+        RCLCPP_WARN(get_logger(), "Trajectory finished. LAND command sent. Offboard setpoints stopped.");
+    }
+
     void computeCatmullRomTrajectory(double t, Waypoint &p, Waypoint &v, Waypoint &a)
     {
         const int n = static_cast<int>(waypoints_.size());
@@ -240,9 +279,7 @@ private:
         const double segment_time = total_time_ / static_cast<double>(segments);
 
         int i = static_cast<int>(std::floor(t / segment_time));
-        if (i >= segments) {
-            i = segments - 1;
-        }
+        i = std::clamp(i, 0, segments - 1);
 
         double tau = (t - i * segment_time) / segment_time;
         tau = std::clamp(tau, 0.0, 1.0);
@@ -252,34 +289,21 @@ private:
         int i2 = i + 1;
         int i3 = std::min(i + 2, n - 1);
 
-        catmullRom(
-            waypoints_[i0], waypoints_[i1],
-            waypoints_[i2], waypoints_[i3],
-            tau, segment_time, p, v, a
-        );
+        catmullRom(waypoints_[i0], waypoints_[i1], waypoints_[i2], waypoints_[i3],
+                   tau, segment_time, p, v, a);
 
-        /*
-         * Only final stop:
-         * For all intermediate segments, Catmull-Rom gives non-zero velocity
-         * through waypoints. At the final sample, velocity is explicitly zeroed.
-         */
         if (t >= total_time_ - dt_) {
+            p = waypoints_.back();
             v = {0.0, 0.0, 0.0, 0.0};
             a = {0.0, 0.0, 0.0, 0.0};
-            p = waypoints_.back();
         }
     }
 
     void catmullRom(
-        const Waypoint &p0,
-        const Waypoint &p1,
-        const Waypoint &p2,
-        const Waypoint &p3,
-        double u,
-        double segment_time,
-        Waypoint &p,
-        Waypoint &v,
-        Waypoint &a)
+        const Waypoint &p0, const Waypoint &p1,
+        const Waypoint &p2, const Waypoint &p3,
+        double u, double segment_time,
+        Waypoint &p, Waypoint &v, Waypoint &a)
     {
         p.x = catmullPosition(p0.x, p1.x, p2.x, p3.x, u);
         p.y = catmullPosition(p0.y, p1.y, p2.y, p3.y, u);
@@ -356,7 +380,7 @@ private:
 
 int main(int argc, char *argv[])
 {
-    std::cout << "Starting 7+ waypoint offboard trajectory planner..." << std::endl;
+    std::cout << "Starting professional 7+ waypoint offboard trajectory planner..." << std::endl;
     rclcpp::init(argc, argv);
     rclcpp::spin(std::make_shared<GoToPoint>());
     rclcpp::shutdown();
