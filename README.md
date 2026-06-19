@@ -1,4 +1,4 @@
-# Robotics Lab 2025 - Homework 3
+# Robotics Lab 2026 - Homework 3
 
 ## PX4 UAV Simulation, Force-Land Safety Logic, and Offboard Trajectory Planning
 
