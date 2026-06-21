@@ -1,9 +1,6 @@
-# Robotics Lab 2025 – Homework 3
-
-**Student:** Kishu  
-**Course:** Robotics Lab 2025  
+# Robotics Lab 2026 – Homework 3
+**Course:** Robotics Lab 2026
 **Platform:** PX4 SITL + ROS 2 Humble + Gazebo Classic
-
 ---
 
 # Project Overview
@@ -32,7 +29,9 @@ ros2_ws/
 │
 plots/
 bags/
-Main ROS 2 packages:
+
+
+#Main ROS 2 packages:
 
 
 
@@ -44,11 +43,11 @@ Main ROS 2 packages:
 
 
 
----
+-------------
 
 
 
-# Custom UAV Validation
+#Custom UAV Validation
 
 
 
@@ -80,7 +79,7 @@ The generated actuator plots confirm stable motor commands and proper thrust all
 
 
 
-# Force-Land Safety Mechanism
+#Force-Land Safety Mechanism
 
 
 
@@ -126,7 +125,7 @@ This approach prevents repeated landing commands while the vehicle is already de
 
 
 
-# Offboard Trajectory Planner
+#Offboard Trajectory Planner
 
 
 
@@ -166,7 +165,7 @@ This behavior satisfies the assignment requirements while ensuring smooth trajec
 
 
 
-# Build Instructions
+#Build Instructions
 
 
 
