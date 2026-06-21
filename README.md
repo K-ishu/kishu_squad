@@ -1,217 +1,463 @@
-# Robotics Lab 2026 - Homework 3
-
-## PX4 UAV Simulation, Force-Land Safety Logic, and Offboard Trajectory Planning
+# Robotics Lab 2025 – Homework 3
 
 **Student:** Kishu  
 **Course:** Robotics Lab 2025  
-**Instructor:** Prof. Mario Selvaggio  
-**Submission Date:** June 2026
+**Platform:** PX4 SITL + ROS 2 Humble + Gazebo Classic
 
 ---
 
-# 1. Project Overview
+# Project Overview
 
-This homework focuses on PX4-based UAV simulation using ROS 2 and Gazebo.
+This project implements the required tasks for Homework 3 using PX4 SITL, ROS 2, and Gazebo.
 
-The project includes:
+Implemented components:
 
-- PX4 SITL simulation
-- Custom UAV validation
-- Force-Land safety implementation
-- Offboard waypoint navigation
+- Custom quadrotor validation
+- Force-land safety mechanism
+- Offboard trajectory planner
 - ROS 2 bag recording
-- Flight data analysis
-- Result visualization
-
-Software stack:
-
-- PX4 Autopilot
-- ROS 2 Humble
-- Gazebo Classic
-- Micro XRCE-DDS Agent
-- Python
-- Matplotlib
-- ROS 2 Bag
+- PX4 ULog analysis
+- Flight-data visualization
 
 ---
 
-# 2. Repository Structure
+# Repository Structure
 
-PX4-Autopilot/
-
+```text
 ros2_ws/
-  src/
-    force_land/
-    offboard_rl/
-    read_rpy/
-
+├── src/
+│   ├── force_land
+│   ├── offboard_rl
+│   └── read_rpy
+│
 plots/
-
 bags/
-
 Main ROS 2 packages:
 
-- force_land: modified force-land FSM node
-- offboard_rl: offboard trajectory planner
-- read_rpy: attitude reader and logging utilities
+
+
+* **force_land** – Modified force-land safety node.
+
+* **offboard_rl** – Offboard trajectory planner.
+
+* **read_rpy** – Attitude and orientation utilities.
+
+
 
 ---
 
-# 3. Custom UAV Validation
 
-The custom quadrotor vehicle was successfully simulated inside PX4 SITL.
 
-Actuator outputs were extracted from PX4 logs and analyzed to verify motor behavior during:
+# Custom UAV Validation
 
-- Arming
-- Takeoff
-- Hover
-- Waypoint tracking
-- Landing
 
-## Figure 1 - Actuator Outputs
 
-![Actuator Outputs](plots/kishu_quad_actuator_outputs.png)
+A custom quadrotor UAV was successfully simulated in PX4 SITL.
 
-The actuator outputs show normal motor arming behavior and stable thrust generation during flight. Motor commands increase during takeoff, remain stable during waypoint tracking, and decrease during landing.
 
----
 
-# 4. Force-Land Safety Logic
+Vehicle behavior was validated through actuator output analysis during:
 
-A safety mechanism was implemented to automatically trigger landing when the UAV altitude exceeds 20 meters.
 
-Condition:
 
-Altitude > 20 m
+* Arming
 
-When this condition becomes true:
+* Takeoff
 
-- Force-land mode is activated
-- Landing sequence starts automatically
-- Vehicle descends until touchdown
+* Hover
 
-The modified node uses a finite-state machine approach. Once the threshold is exceeded, a landing command is sent and the state changes to landing. The landing procedure is considered complete only when PX4 reports touchdown through the VehicleLandDetected message. This prevents re-triggering the landing logic while the vehicle is already performing a landing maneuver.
+* Waypoint tracking
 
-## Figure 2 - Force Land Altitude and Landing Detection
+* Landing
 
-![Force Land](plots/force_land_altitude_land_detected.png)
 
-The UAV climbs above the 20 m threshold and the force-land logic is triggered. The landing detector confirms successful touchdown at the end of the mission.
 
-## Figure 3 - Manual Control Input
+The generated actuator plots confirm stable motor commands and proper thrust allocation throughout the mission.
 
-![Manual Input](plots/force_land_manual_control.png)
 
-The recorded manual control input remains constant during the experiment. Throttle is maintained while roll, pitch, and yaw remain close to zero.
-
-## Figure 4 - Manual Input vs Altitude
-
-![Manual vs Altitude](plots/force_land_manual_vs_altitude.png)
-
-This figure compares throttle input and altitude evolution. The altitude increases until the safety threshold is reached, after which the force-land procedure starts.
 
 ---
 
-# 5. Offboard Trajectory Planning
 
-An autonomous offboard controller was implemented using ROS 2.
 
-The UAV follows a trajectory containing more than seven waypoints while maintaining continuous motion throughout the path.
+# Force-Land Safety Mechanism
 
-The trajectory planner uses Catmull-Rom spline interpolation to guarantee smooth transitions between waypoints. Position, velocity, acceleration, yaw, and yaw rate references are continuously generated and transmitted to PX4 through the Offboard interface.
 
-Example waypoint sequence:
 
-- (0, 0, 5)
-- (5, 0, 5)
-- (7, 4, 6)
-- (3, 8, 6)
-- (-2, 7, 5)
-- (-6, 3, 5)
-- (-4, -3, 6)
-- (0, 0, 5)
+A safety mechanism was implemented to automatically trigger landing whenever the vehicle altitude exceeds 20 meters.
 
-The vehicle is commanded with:
 
-- Position setpoints
-- Velocity setpoints
-- Acceleration setpoints
-- Yaw references
-- Yaw-rate references
 
-Zero velocity is commanded only at the final waypoint, satisfying the assignment requirement that the UAV must not stop at intermediate waypoints.
+The node continuously monitors the vehicle position using PX4 telemetry messages.
 
-## Figure 5 - XY Trajectory
 
-![XY Trajectory](plots/offboard_xy_trajectory.png)
 
-The UAV successfully follows the desired waypoint sequence and returns near the starting location.
+When the altitude threshold is exceeded:
 
-## Figure 6 - Altitude Tracking
 
-![Altitude](plots/offboard_altitude.png)
 
-The altitude remains close to the desired flight level during navigation and decreases smoothly during landing.
+1. A landing command is sent to PX4.
 
-## Figure 7 - Velocity Profile
+2. The vehicle enters the landing state.
 
-![Velocity](plots/offboard_velocity.png)
+3. Landing completion is verified using touchdown detection.
 
-Velocity components vary according to waypoint transitions. Peaks correspond to trajectory changes and turning maneuvers.
 
-## Figure 8 - Acceleration Profile
 
-![Acceleration](plots/offboard_acceleration.png)
+The implementation uses:
 
-Acceleration remains bounded during most of the mission. Short peaks appear during aggressive trajectory transitions and landing initiation.
 
-## Figure 9 - Yaw Evolution
 
-![Yaw](plots/offboard_yaw.png)
+* VehicleLocalPosition
 
-Yaw changes continuously during the mission to align the UAV heading with the desired trajectory direction.
+* VehicleLandDetected
+
+* VehicleCommand
+
+* ManualControlSetpoint
+
+
+
+This approach prevents repeated landing commands while the vehicle is already descending.
+
+
 
 ---
 
-# 6. Experimental Results
 
-The simulation results demonstrate:
 
-- Successful arming procedure
-- Stable takeoff
-- Autonomous waypoint navigation
-- Correct offboard operation
-- Stable actuator behavior
-- Automatic force-land activation
-- Successful landing detection
-- Reliable ROS 2 bag recording
-- Smooth spline-based trajectory tracking
+# Offboard Trajectory Planner
 
-The recorded flight data confirms that all required PX4 subsystems operated correctly throughout the experiments.
+
+
+An autonomous offboard controller was developed using ROS 2.
+
+
+
+The planner commands the UAV through a trajectory containing more than seven waypoints while maintaining continuous motion throughout the mission.
+
+
+
+The controller publishes:
+
+
+
+* Position setpoints
+
+* Velocity setpoints
+
+* Acceleration setpoints
+
+* Yaw setpoints
+
+* Yaw-rate setpoints
+
+
+
+The vehicle is not allowed to stop at intermediate waypoints. Zero velocity is commanded only at the final waypoint.
+
+
+
+This behavior satisfies the assignment requirements while ensuring smooth trajectory tracking.
+
+
 
 ---
 
-# 7. Results Analysis
 
-Analysis of the generated plots shows that the UAV maintained stable flight during all mission phases.
 
-The actuator outputs remained balanced, indicating proper control allocation and thrust generation.
+# Build Instructions
 
-The force-land experiment confirms that the safety logic is triggered when the altitude threshold is exceeded. The landing detector correctly identifies touchdown and terminates the landing sequence.
 
-The trajectory tracking results show smooth position evolution, bounded acceleration, continuous velocity profiles, and gradual yaw transitions. The UAV never stops at intermediate waypoints, satisfying the assignment requirements.
 
-Overall, the generated data demonstrates stable control performance, successful mission execution, and correct integration between ROS 2 and PX4.
+```bash
+
+cd ~/robotics_hw3_workspace/ros2_ws
+
+
+
+source /opt/ros/humble/setup.bash
+
+
+
+colcon build --symlink-install
+
+
+
+source install/setup.bash
+
+```
+
+
 
 ---
 
-# 8. Conclusion
 
-Homework 3 was successfully completed using PX4 SITL, Gazebo, and ROS 2.
 
-A multi-waypoint offboard trajectory planner was implemented and validated. The UAV autonomously tracked the desired trajectory while maintaining smooth velocity and acceleration profiles.
+# Start PX4 SITL
 
-Additionally, the force-land safety mechanism was modified and tested. Experimental results confirmed correct activation of the landing procedure and proper touchdown detection.
 
-All requested plots were generated from recorded flight data and demonstrate successful completion of the assignment objectives.
+
+```bash
+
+cd ~/robotics_hw3_workspace/PX4-Autopilot
+
+
+
+pkill -9 px4
+
+pkill -9 gzserver
+
+pkill -9 gzclient
+
+
+
+PX4_SIMULATOR=gazebo-classic make px4_sitl gazebo-classic_iris
+
+```
+
+
+
+PX4 shell configuration:
+
+
+
+```text
+
+param set COM_ARM_WO_GPS 1
+
+param set COM_RC_IN_MODE 4
+
+param set CBRK_SUPPLY_CHK 894281
+
+
+
+commander arm
+
+commander takeoff
+
+```
+
+
+
+---
+
+
+
+# Start XRCE-DDS Agent
+
+
+
+```bash
+
+MicroXRCEAgent udp4 -p 8888
+
+```
+
+
+
+---
+
+
+
+# Run Force-Land Node
+
+
+
+```bash
+
+source ~/robotics_hw3_workspace/ros2_ws/install/setup.bash
+
+
+
+ros2 run force_land force_land
+
+```
+
+
+
+---
+
+
+
+# Run Offboard Mission
+
+
+
+```bash
+
+source ~/robotics_hw3_workspace/ros2_ws/install/setup.bash
+
+
+
+ros2 run offboard_rl go_to_point
+
+```
+
+
+
+---
+
+
+
+# Publish Manual Control Input
+
+
+
+```bash
+
+ros2 topic pub /fmu/in/manual_control_input px4_msgs/msg/ManualControlSetpoint \
+
+"{valid: true, data_source: 1, throttle: 0.7}" \
+
+-r 20
+
+```
+
+
+
+---
+
+
+
+# Record Force-Land Experiment
+
+
+
+```bash
+
+ros2 bag record -o hw3_force_land_clean_v2 \
+
+/fmu/in/manual_control_input \
+
+/fmu/out/vehicle_local_position_v1 \
+
+/fmu/out/vehicle_land_detected
+
+```
+
+
+
+---
+
+
+
+# Record Offboard Mission
+
+
+
+```bash
+
+ros2 bag record -o hw3_offboard_landing_final \
+
+/fmu/out/vehicle_local_position_v1 \
+
+/fmu/out/vehicle_attitude \
+
+/fmu/out/vehicle_odometry \
+
+/fmu/out/vehicle_land_detected \
+
+/fmu/in/trajectory_setpoint
+
+```
+
+
+
+---
+
+
+
+# Generate Plots
+
+
+
+```bash
+
+python3 plot_force_land_clean.py
+
+
+
+python3 plot_offboard_bag.py
+
+
+
+python3 plot_ulog_hw3.py
+
+```
+
+
+
+Generated outputs:
+
+
+
+```text
+
+plots/kishu_quad_actuator_outputs.png
+
+plots/force_land_altitude_land_detected.png
+
+plots/force_land_manual_control.png
+
+plots/force_land_manual_vs_altitude.png
+
+plots/offboard_xy_trajectory.png
+
+plots/offboard_altitude.png
+
+plots/offboard_velocity.png
+
+plots/offboard_acceleration.png
+
+plots/offboard_yaw.png
+
+```
+
+
+
+---
+
+
+
+# Results
+
+
+
+The completed experiments demonstrate:
+
+
+
+* Successful UAV validation in PX4 SITL.
+
+* Stable actuator behavior during all flight phases.
+
+* Reliable force-land activation above the safety threshold.
+
+* Correct touchdown detection.
+
+* Smooth multi-waypoint offboard navigation.
+
+* Stable trajectory tracking and orientation control.
+
+* Successful ROS 2 and PX4 integration.
+
+
+
+The generated plots confirm that all required project objectives were achieved.
+
+
+
+---
+
+
+
+# Conclusion
+
+
+
+Homework 3 was successfully completed using PX4 SITL, Gazebo Classic, and ROS 2 Humble.
+
+
+
+The custom UAV platform, force-land safety mechanism, and offboard trajectory planner were implemented and validated through simulation experiments. Flight data were recorded using ROS 2 bags and PX4 logs, and the resulting analyses confirmed correct system behavior and successful completion of all assignment requirements.
