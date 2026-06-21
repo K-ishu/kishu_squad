@@ -1,6 +1,9 @@
 # Robotics Lab 2026 – Homework 3
-**Course:** Robotics Lab 2026
+
+
+**Course:** Robotics Lab 2025  
 **Platform:** PX4 SITL + ROS 2 Humble + Gazebo Classic
+
 ---
 
 # Project Overview
@@ -30,23 +33,25 @@ ros2_ws/
 plots/
 bags/
 
+```
 
-#Main ROS 2 packages:
-
-
-- force_land – Modified force-land safety node.
-
-- offboard_rl– Offboard trajectory planner.
-
-- read_rpy – Attitude and orientation utilities.
+# Main ROS 2 packages:
 
 
 
--------------
+* **force_land** – Modified force-land safety node.
+
+* **offboard_rl** – Offboard trajectory planner.
+
+* **read_rpy** – Attitude and orientation utilities.
 
 
 
-#Custom UAV Validation
+---
+
+
+
+# Custom UAV Validation
 
 
 
@@ -78,7 +83,7 @@ The generated actuator plots confirm stable motor commands and proper thrust all
 
 
 
-#Force-Land Safety Mechanism
+# Force-Land Safety Mechanism
 
 
 
@@ -124,7 +129,7 @@ This approach prevents repeated landing commands while the vehicle is already de
 
 
 
-#Offboard Trajectory Planner
+# Offboard Trajectory Planner
 
 
 
@@ -164,7 +169,7 @@ This behavior satisfies the assignment requirements while ensuring smooth trajec
 
 
 
-#Build Instructions
+# Build Instructions
 
 
 
