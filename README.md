@@ -31,15 +31,14 @@ plots/
 bags/
 
 
-##Main ROS 2 packages:
+#Main ROS 2 packages:
 
 
+force_land – Modified force-land safety node.
 
-* **force_land** – Modified force-land safety node.
+offboard_rl– Offboard trajectory planner.
 
-* **offboard_rl** – Offboard trajectory planner.
-
-* **read_rpy** – Attitude and orientation utilities.
+read_rpy – Attitude and orientation utilities.
 
 
 
